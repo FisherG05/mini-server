@@ -18,10 +18,10 @@ def main():
 
         # server socket setup
         s_sock.bind(address)
-        s_sock.listen(2)
+        s_sock.listen(2) # non blocking
         
         # wait for connection
-        conn, addr = s_sock.accept()
+        conn, addr = s_sock.accept() # blocking
         print(f"Connected sock info: addr - {addr} : conn - {conn}")
 
         
