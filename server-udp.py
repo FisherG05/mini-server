@@ -1,47 +1,68 @@
 from sys import argv
-from socket import socket
+from socket import socket, SOCK_DGRAM
+from select import select
 
-
-def main():
-    # TODO: check args
+def test_args():
     if len(argv) != 4:
         print("ERROR: Incorrect number of command line arguments")
+        raise ValueError
     if argv[1] == argv[2] or argv[1] == argv[3] or argv[2] == argv[3]:
         print("ERROR: Duplicate ports given")
-    ports = []
+        raise ValueError
+    ports = [0, 0, 0]
     for i in range(1, len(argv)):
         try:
             ports[i - 1] = int(argv[i])
         except ValueError:
             print(f"ERROR: Given port '{argv[i]}' is not an integer")
-        if 1024 > ports[i - 1] > 32767:
+            raise TypeError
+        if 1024 > ports[i - 1] or ports[i - 1] > 32767:
             print(f"ERROR: Given port '{ports[i - 1]}' is not in the range [1024, 32767]")
+            raise ValueError
+    return ports
 
-    eng_sock, maori_sock,germ_sock = None, None, None
+def create_socket(lang):
+    print(f"Creating socket for {lang}")
+    return socket(type=SOCK_DGRAM)
+
+def bind_socket(sock, port):
+    print(f"Binding to port {port}")
+    sock.bind(("localhost", port))
+
+def main():
 
     try:
-        print("Creating socket for English")
-        eng_sock = socket()
-        print("Creating socket for Maori")
-        maori_sock = socket()
-        print("Creating socket for German")
-        germ_sock = socket()
-    except OSError:
-        print("ERROR: Socket creation failed")
-    finally:
-        eng_sock.close()
-        maori_sock.close()
-        germ_sock.close()
+        ports = test_args()
+    except ValueError as e:
+        exit(1)
+    except TypeError as e:
+        exit(1)
 
-    # TODO: Bind sockets
+    sockets = [None, None, None]
+
     try:
-        print("TODO")
+        for i in range(len(ports)):
+            try:
+                sockets[i] = create_socket("english")
+            except:
+                print('ERROR: Socket creation failed')
+                raise OSError
+
+            try:
+                bind_socket(sockets[i], ports[i])
+            except:
+                print('ERROR: Socket binding failed')
+                raise OSError
+
+        while True:
+            print("Waiting for requests...")
+            readable = select(sockets, [], [])[0]
+            # TODO: check packets
+
+            # TODO: send response
     finally:
-        print("ERROR: Socket creation failed")
-        eng_sock.close()
-        maori_sock.close()
-        germ_sock.close()
-    # TODO: Infinite loop, waiting for response
+        for s in sockets:
+            s.close()
 
 
 
