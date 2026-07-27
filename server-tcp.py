@@ -19,29 +19,31 @@ def main():
         # server socket setup
         s_sock.bind(address)
         s_sock.listen(2) # non blocking
-        
-        # wait for connection
-        conn, addr = s_sock.accept() # blocking
-        print(f"Connected sock info: addr - {addr} : conn - {conn}")
+        try:
+            # wait for connection
+            conn, addr = s_sock.accept() # blocking
+            print(f"Connected sock info: addr - {addr} : conn - {conn}")
 
-        
 
-        # recieve and translate them
-        recieved_bytes = conn.recv(4096)
-        decoded_str = recieved_bytes.decode()
 
-        print(f"Decoded string: \n{decoded_str}")
+            # recieve and translate them
+            recieved_bytes = conn.recv(4096)
+            decoded_str = recieved_bytes.decode()
 
-        with Path('./about.html').open() as file:
-            
-            
-            headers = "HTTP/1.1 200 OK\r\nContent-Type: text/html; charset=UTF-8\r\nDate: Thu, 23 Jul 2026 14:08:30 GMT\r\nContent-Length: 229\r\n\r\n"
-            html = file.read()
+            print(f"Decoded string: \n{decoded_str}")
 
-            # send response
-            num_of_bytes = conn.send(bytearray(headers + html, 'utf-8'))
-            # num_of_bytes = conn.send(bytearray(html, 'utf-8'))
-            print(f"Num of bytes: {num_of_bytes}")
+            with Path('./about.html').open() as file:
+
+
+                headers = "HTTP/1.1 200 OK\r\nContent-Type: text/html; charset=UTF-8\r\nDate: Thu, 23 Jul 2026 14:08:30 GMT\r\nContent-Length: 229\r\n\r\n"
+                html = file.read()
+
+                # send response
+                num_of_bytes = conn.send(bytearray(headers + html, 'utf-8'))
+                # num_of_bytes = conn.send(bytearray(html, 'utf-8'))
+                print(f"Num of bytes: {num_of_bytes}")
+        finally:
+            conn.close()
 
 
 
