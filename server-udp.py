@@ -1,6 +1,10 @@
-from sys import argv
-from socket import socket, SOCK_DGRAM, timeout
+from sys import argv, exit
+from socket import socket, SOCK_DGRAM, AF_INET, timeout, getaddrinfo
 from select import select
+from datetime import datetime, tzinfo
+
+_HEADER_SIZE = 13
+
 
 def test_args(ports):
     if len(argv) != 4:
@@ -22,7 +26,7 @@ def test_args(ports):
 def create_socket(lang):
     print(f"Creating socket for {lang}")
     try:
-        sock = socket(type=SOCK_DGRAM)
+        sock = socket(AF_INET, SOCK_DGRAM)
         sock.settimeout(1)
         return sock
     except:
@@ -53,6 +57,37 @@ def test_data(data):
         raise ValueError("ERROR: Packet has invalid type, dropping packet")
     return request_type
 
+def format_data(sock, sockets):
+    try:
+        data, address = sock.recvfrom(4096)
+    except timeout:
+        raise OSError("ERROR: Receiving timed out, dropping packet")
+    except OSError:
+        raise OSError("ERROR: Receiving failed, dropping packet")
+
+    # test and type
+    request_type = test_data(data)
+
+    # details
+    index = sockets.index(sock)
+
+    # request type string
+    request_type_str = "date" if request_type == 0x0001 else "time"
+
+    ip_address = getaddrinfo(address[0], address[1])[0][3]
+    print(ip_address)
+
+    return data, address, request_type, request_type_str, index, ip_address
+
+def month_name(lang, month):
+    eng_months = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"]
+    maori_months = ["Kohi-tātea", "Hui-tanguru", "Poutū-te-rangi", "Paenga-whāwhā", "Haratua", "Pipiri", "Hōngingoi", "Here-turi-kōkā", "Mahuru", "Whiringa-ā-nuku", "Whiringa-ā-rangi", "Hakihea"]
+    germ_months = ["Januar", "Februar", "März", "April", "Mai", "Juni", "Juli", "August", "September", "Oktober", "November", "Dezember"]
+
+    months = [eng_months, maori_months, germ_months]
+
+    return months[lang][month - 1]
+
 def main():
     """
 
@@ -79,29 +114,71 @@ def main():
             bind_socket(sockets[i], ports[i])
 
         while True:
-            print("Waiting for requests...")
-            readable = select(sockets, [], [])[1]
-            for sock in readable:
-                # TODO: Create a method that returns a bunch of formatted stuff all in one go
-                data, address = None, None
+            try:
+                print("Waiting for requests...")
+                readable = select(sockets, [], [])[1]
+                for sock in readable:
+                    # get all the stuff
+                    data, address, request_type, request_type_str, index, ip_address = format_data(sock, sockets)
 
-                try:
-                    data, address = sock.recvfrom(4096)
-                except timeout:
-                    raise OSError("ERROR: Receiving timed out, dropping packet")
-                except OSError:
-                    raise OSError("ERROR: Receiving failed, dropping packet")
+                    # proper packet
+                    print(f"{languages[index]} received {request_type_str} request from {ip_address}")
 
-                # test and type
-                request_type = test_data(data)
+                    dt = datetime.now()
+                    mm = dt.minute
+                    hh = dt.hour
+                    day = dt.day
+                    month = dt.month
+                    year = dt.year
 
-                # details
-                index = sockets.index(sock)
+                    text = ""
+                    if request_type == 0x0001:  # current date
+                        text = f"Today's date is {month_name(index, month)} {day}, {year}"
+                    else:  # current time
+                        text = f"The current time is {hh}:{mm}"
 
-                # proper packet
-                print(f"{languages[index]} received {"date" if request_type == 0x0001 else "time"} request from {format_ip(address)}")
+                    text_bytes = text.encode("utf-8")
+                    text_length = len(text_bytes)
+                    if text_length > 255:
+                        raise ValueError("ERROR: Text too long, dropping packet")
 
-                # TODO: send response
+                    packet_array = bytearray(text_length + _HEADER_SIZE)
+
+                    # Header ------------------
+                    # Magic Number
+                    packet_array[0] = 0x36
+                    packet_array[1] = 0xFB
+
+                    # Packet Type
+                    packet_array[2] = 0x00
+                    packet_array[3] = 0x02
+
+                    # Request Type
+                    packet_array[4] = 0x00
+                    packet_array[5] = index + 1
+
+                    # Date
+                    packet_array[6] = (year & 0xFF00) >> 2
+                    packet_array[7] =  (year & 0x00FF)
+                    packet_array[8] = month
+                    packet_array[9] = day
+                    packet_array[10] = hh
+                    packet_array[11] = mm
+
+                    # text length
+                    packet_array[12] = text_length
+
+                    for i in range(text_length):
+                        packet_array[i + 13] = text_bytes[i]
+
+
+
+            except OSError as e:
+                print(e)
+            except ValueError as e:
+                print(e)
+            except Exception as e:
+                print(e)
 
     except ValueError as e:
         print(e)
@@ -109,7 +186,9 @@ def main():
         print(e)
     finally:
         for s in sockets:
-            s.close()
+            if s != None:
+                s.close()
+        exit(0)
 
 
 
