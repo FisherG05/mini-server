@@ -114,8 +114,8 @@ def main():
         try:
             _ = sock.sendto(packet_array, addr_info[4])
         except Exception as e:
-            # raise OSError("ERROR: Sending failed")
-            raise OSError(e)
+            raise OSError("ERROR: Sending failed")
+            # raise OSError(e)
 
         print(f"{req_string} request sent to {addr_info[4][0]}:{port}")
 

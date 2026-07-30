@@ -39,20 +39,29 @@ def bind_socket(sock, port):
     except:
         raise OSError('ERROR: Socket binding failed')
 
-# TODO: format the ip address properly and return it
-# def format_ip(address):
-
 def test_data(data):
     if len(data) != 6:
         raise ValueError("ERROR: Packet length incorrect for a DT_Request, dropping packet")
 
-    if data[0] << 2 + data[1] != 0x36FB:
+    magic_no_b1 = data[0]
+    magic_no_b2 = data[1]
+    print(type(magic_no_b1))
+    print(type(magic_no_b2))
+    if (magic_no_b1 << 2) + magic_no_b2 != 0x36FB:
+        print(type(data))
+        print(hex(data[0]))
+        print(hex(data[0] << 2))
+        print(hex(data[1]))
         raise ValueError("ERROR: Packet magic number is incorrect, dropping packet")
 
-    if data[2] << 2 + data[3] != 0x0001:
+    pack_type_b1 = data[2]
+    pack_type_b2 = data[3]
+    if (pack_type_b1 << 2) + pack_type_b2 != 0x0001:
         raise ValueError("ERROR: Packet is not a DT_Request, dropping packet")
 
-    request_type = data[4] << 2 + data[5]
+    rec_type_b1 = data[4]
+    rec_type_b2 = data[5]
+    request_type = (rec_type_b1 << 2) + rec_type_b2
     if request_type != 0x0001 or request_type != 0x0002:
         raise ValueError("ERROR: Packet has invalid type, dropping packet")
     return request_type
@@ -66,7 +75,7 @@ def format_data(sock, sockets):
         raise OSError("ERROR: Receiving failed, dropping packet")
 
     # test and type
-    request_type = test_data(data)
+    request_type = test_data(bytearray(data))
 
     # details
     lang_index = sockets.index(sock)
@@ -92,9 +101,12 @@ def main():
     """
 
     """
+    # argv.append("1025")
+    # argv.append("1026")
+    # argv.append("1027")
 
     # variables
-    languages = ["English", "Maori", "German"]
+    languages = ["English", "Māori", "German"]
     sockets = [None, None, None]
     ports = [0, 0, 0]
 
@@ -110,13 +122,14 @@ def main():
     try:
         for i in range(len(ports)):
 
-            sockets[i] = create_socket("english")
+            sockets[i] = create_socket(languages[i])
             bind_socket(sockets[i], ports[i])
 
         while True:
             try:
                 print("Waiting for requests...")
-                readable = select(sockets, [], [])[1]
+                readable = select(sockets, [], [])[0]
+
                 for sock in readable:
                     # get all the stuff
                     data, address, request_type, request_type_str, lang_index, ip_address = format_data(sock, sockets)
@@ -187,9 +200,10 @@ def main():
                     try:
                         sock.sendto(packet_array, address)
                         print("Response sent")
-                    except OSError:
-                        raise OSError("ERROR: Sending failed, dropping packet")
-
+                    except Exception as e:
+                        # raise OSError("ERROR: Sending failed, dropping packet")
+                        print("WE ARE ENTERING HERE*******************")
+                        raise OSError(e)
 
             except OSError as e:
                 print(e)
