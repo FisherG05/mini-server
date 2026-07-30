@@ -69,7 +69,7 @@ def format_data(sock, sockets):
     request_type = test_data(data)
 
     # details
-    index = sockets.index(sock)
+    lang_index = sockets.index(sock)
 
     # request type string
     request_type_str = "date" if request_type == 0x0001 else "time"
@@ -77,7 +77,7 @@ def format_data(sock, sockets):
     ip_address = getaddrinfo(address[0], address[1])[0][3]
     print(ip_address)
 
-    return data, address, request_type, request_type_str, index, ip_address
+    return data, address, request_type, request_type_str, lang_index, ip_address
 
 def month_name(lang, month):
     eng_months = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"]
@@ -119,10 +119,10 @@ def main():
                 readable = select(sockets, [], [])[1]
                 for sock in readable:
                     # get all the stuff
-                    data, address, request_type, request_type_str, index, ip_address = format_data(sock, sockets)
+                    data, address, request_type, request_type_str, lang_index, ip_address = format_data(sock, sockets)
 
                     # proper packet
-                    print(f"{languages[index]} received {request_type_str} request from {ip_address}")
+                    print(f"{languages[lang_index]} received {request_type_str} request from {ip_address}")
 
                     dt = datetime.now()
                     mm = dt.minute
@@ -132,10 +132,23 @@ def main():
                     year = dt.year
 
                     text = ""
-                    if request_type == 0x0001:  # current date
-                        text = f"Today's date is {month_name(index, month)} {day}, {year}"
-                    else:  # current time
-                        text = f"The current time is {hh}:{mm}"
+                    if lang_index == 0: # english
+                        if request_type == 0x0001:  # current date
+                            text = f"Today's date is {month_name(lang_index, month)} {day}, {year}"
+                        else:  # current time
+                            text = f"The current time is {hh}:{mm}"
+
+                    elif lang_index == 1:
+                        if request_type == 0x0001:  # current date
+                            text = f"Ko te rā o tēnei rā ko {month_name(lang_index, month)} {day}, {year}"
+                        else:  # current time
+                            text = f"Ko te wā o tēnei wā {hh}:{mm}"
+
+                    else:
+                        if request_type == 0x0001:  # current date
+                            text += f"Heute ist der {month_name(lang_index, month)} {day}, {year}"
+                        else:  # current time
+                            text += f"Die Uhrzeit ist {hh}:{mm}"
 
                     text_bytes = text.encode("utf-8")
                     text_length = len(text_bytes)
@@ -155,7 +168,7 @@ def main():
 
                     # Request Type
                     packet_array[4] = 0x00
-                    packet_array[5] = index + 1
+                    packet_array[5] = lang_index + 1
 
                     # Date
                     packet_array[6] = (year & 0xFF00) >> 2
@@ -171,6 +184,11 @@ def main():
                     for i in range(text_length):
                         packet_array[i + 13] = text_bytes[i]
 
+                    try:
+                        sock.sendto(packet_array, address)
+                        print("Response sent")
+                    except OSError:
+                        raise OSError("ERROR: Sending failed, dropping packet")
 
 
             except OSError as e:
