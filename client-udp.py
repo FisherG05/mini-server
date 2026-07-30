@@ -40,14 +40,14 @@ def test_packet(res_pack):
     if len(res_pack) < 13:
         raise ValueError("ERROR: Packet is too small to be a DT_Response")
 
-    if (res_pack[0] << 2) + res_pack[1] != 0x36FB:
+    if (res_pack[0] << 8) + res_pack[1] != 0x36FB:
         raise ValueError("ERROR: Packet magic number is incorrect")
 
-    if (res_pack[2] << 2) + res_pack[3] != 0x0002:
+    if (res_pack[2] << 8) + res_pack[3] != 0x0002:
         raise ValueError("ERROR: Packet is not a DT_Response")
 
-    lang_code = (res_pack[4] << 2) + res_pack[5]
-    if lang_code != 1 or lang_code != 2 or lang_code != 3:
+    lang_code = (res_pack[4] << 8) + res_pack[5]
+    if lang_code != 1 and lang_code != 2 and lang_code != 3:
         raise ValueError("ERROR: Packet has invalid language")
 
     lang = ""
@@ -58,7 +58,7 @@ def test_packet(res_pack):
     else:
         lang = "German"
 
-    year = (res_pack[6] << 2) + res_pack[7]
+    year = (res_pack[6] << 8) + res_pack[7]
     if year >= 2100:
         raise ValueError("ERROR: Packet has invalid year")
 
@@ -79,13 +79,12 @@ def test_packet(res_pack):
         raise ValueError("ERROR: Packet has invalid minute")
 
     length = res_pack[12]
-    if length != len(res_pack):
+    if length + 13 != len(res_pack):
         raise ValueError("ERROR: Packet text length is incorrect")
 
     text = ""
     try:
-        for i in range(13, length):
-            text += res_pack[i].decode("UTF-8")
+        text = res_pack.decode("UTF-8")
     except Exception:
         raise UnicodeDecodeError("ERROR: Packet has invalid text")
 
@@ -95,7 +94,14 @@ def test_packet(res_pack):
 
 
 def main():
+    if len(argv) == 1:
+        argv.append("date")
+        argv.append("localhost")
+        argv.append("1025")
+
     port, address, req_type, req_string, addr_info = test_args()
+
+
 
     sock = None
     try:
@@ -121,7 +127,7 @@ def main():
 
         res_pack, recv_addr = recv_from_host(sock)
 
-        lang, lang_code, year, month, day, hour, minute, text, length = test_packet(res_pack)
+        lang, lang_code, year, month, day, hour, minute, text, length = test_packet(bytearray(res_pack))
 
         print(f"{lang} response received:Text: {text}\nDate: {day}/{month}/{year}\nTime: {hour}:{minute})")
 

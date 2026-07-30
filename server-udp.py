@@ -36,33 +36,21 @@ def bind_socket(sock, port):
     print(f"Binding to port {port}")
     try:
         sock.bind(("localhost", port))
-    except:
+    except Exception:
         raise OSError('ERROR: Socket binding failed')
 
 def test_data(data):
     if len(data) != 6:
         raise ValueError("ERROR: Packet length incorrect for a DT_Request, dropping packet")
 
-    magic_no_b1 = data[0]
-    magic_no_b2 = data[1]
-    print(type(magic_no_b1))
-    print(type(magic_no_b2))
-    if (magic_no_b1 << 2) + magic_no_b2 != 0x36FB:
-        print(type(data))
-        print(hex(data[0]))
-        print(hex(data[0] << 2))
-        print(hex(data[1]))
+    if (data[0] << 8) + data[1] != 0x36FB:
         raise ValueError("ERROR: Packet magic number is incorrect, dropping packet")
 
-    pack_type_b1 = data[2]
-    pack_type_b2 = data[3]
-    if (pack_type_b1 << 2) + pack_type_b2 != 0x0001:
+    if (data[2] << 8) + data[3] != 0x0001:
         raise ValueError("ERROR: Packet is not a DT_Request, dropping packet")
 
-    rec_type_b1 = data[4]
-    rec_type_b2 = data[5]
-    request_type = (rec_type_b1 << 2) + rec_type_b2
-    if request_type != 0x0001 or request_type != 0x0002:
+    request_type = (data[4] << 8) + data[5]
+    if request_type != 0x0001 and request_type != 0x0002:
         raise ValueError("ERROR: Packet has invalid type, dropping packet")
     return request_type
 
@@ -71,11 +59,12 @@ def format_data(sock, sockets):
         data, address = sock.recvfrom(4096)
     except timeout:
         raise OSError("ERROR: Receiving timed out, dropping packet")
-    except OSError:
+    except Exception:
         raise OSError("ERROR: Receiving failed, dropping packet")
 
     # test and type
-    request_type = test_data(bytearray(data))
+    data = bytearray(data)
+    request_type = test_data(data)
 
     # details
     lang_index = sockets.index(sock)
@@ -84,7 +73,6 @@ def format_data(sock, sockets):
     request_type_str = "date" if request_type == 0x0001 else "time"
 
     ip_address = getaddrinfo(address[0], address[1])[0][3]
-    print(ip_address)
 
     return data, address, request_type, request_type_str, lang_index, ip_address
 
@@ -101,9 +89,10 @@ def main():
     """
 
     """
-    # argv.append("1025")
-    # argv.append("1026")
-    # argv.append("1027")
+    # if len(argv) == 1:
+    #     argv.append("1025")
+    #     argv.append("1026")
+    #     argv.append("1027")
 
     # variables
     languages = ["English", "Māori", "German"]
@@ -163,7 +152,7 @@ def main():
                         else:  # current time
                             text += f"Die Uhrzeit ist {hh}:{mm}"
 
-                    text_bytes = text.encode("utf-8")
+                    text_bytes = text.encode("UTF-8")
                     text_length = len(text_bytes)
                     if text_length > 255:
                         raise ValueError("ERROR: Text too long, dropping packet")
@@ -184,7 +173,7 @@ def main():
                     packet_array[5] = lang_index + 1
 
                     # Date
-                    packet_array[6] = (year & 0xFF00) >> 2
+                    packet_array[6] = (year & 0xFF00) >> 8
                     packet_array[7] =  (year & 0x00FF)
                     packet_array[8] = month
                     packet_array[9] = day
@@ -202,7 +191,6 @@ def main():
                         print("Response sent")
                     except Exception as e:
                         # raise OSError("ERROR: Sending failed, dropping packet")
-                        print("WE ARE ENTERING HERE*******************")
                         raise OSError(e)
 
             except OSError as e:
