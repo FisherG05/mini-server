@@ -84,9 +84,9 @@ def test_packet(res_pack):
 
     text = ""
     try:
-        text = res_pack.decode("UTF-8")
+        text = res_pack[13:13 + length].decode("UTF-8")
     except Exception:
-        raise UnicodeDecodeError("ERROR: Packet has invalid text")
+        raise ValueError("ERROR: Packet has invalid text")
 
 
     return lang, lang_code, year, month, day, hour, minute, text, length
@@ -134,8 +134,6 @@ def main():
     except OSError as e:
         print(e)
     except ValueError as e:
-        print(e)
-    except UnicodeDecodeError as e:
         print(e)
     except Exception as e:
         print(e)
