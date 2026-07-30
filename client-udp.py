@@ -1,5 +1,5 @@
 from sys import argv, exit
-from socket import socket, getaddrinfo, timeout
+from socket import socket, getaddrinfo, timeout, AF_INET, SOCK_DGRAM
 
 
 def test_args():
@@ -100,7 +100,7 @@ def main():
     sock = None
     try:
         print("Creating Socket")
-        sock = socket()
+        sock = socket(AF_INET, SOCK_DGRAM)
         sock.settimeout(1)
 
         packet_array = bytearray(6)
@@ -112,9 +112,10 @@ def main():
         packet_array[5] = req_type
 
         try:
-            sock.sendto(packet_array, (addr_info[4], port))
-        except Exception:
-            raise OSError("ERROR: Sending failed")
+            _ = sock.sendto(packet_array, addr_info[4])
+        except Exception as e:
+            # raise OSError("ERROR: Sending failed")
+            raise OSError(e)
 
         print(f"{req_string} request sent to {addr_info[4][0]}:{port}")
 
