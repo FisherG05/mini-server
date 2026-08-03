@@ -86,13 +86,6 @@ def month_name(lang, month):
     return months[lang][month - 1]
 
 def main():
-    """
-
-    """
-    # if len(argv) == 1:
-    #     argv.append("1025")
-    #     argv.append("1026")
-    #     argv.append("1027")
 
     # variables
     languages = ["English", "Māori", "German"]
@@ -126,7 +119,10 @@ def main():
                     # proper packet
                     print(f"{languages[lang_index]} received {request_type_str} request from {ip_address}")
 
-                    dt = datetime.now()
+                    # dt = datetime.now()
+                    # dt = datetime(2019, 3, 17, 5, 6, 0)
+                    # dt = datetime(2012, 5, 2, 2, 23, 0)
+                    dt = datetime(2020, 4, 12, 8, 57, 0)
                     mm = dt.minute
                     hh = dt.hour
                     day = dt.day
@@ -140,15 +136,15 @@ def main():
                         else:  # current time
                             text = f"The current time is {hh}:{mm}"
 
-                    elif lang_index == 1:
+                    elif lang_index == 1:  # Māori
                         if request_type == 0x0001:  # current date
                             text = f"Ko te rā o tēnei rā ko {month_name(lang_index, month)} {day}, {year}"
                         else:  # current time
                             text = f"Ko te wā o tēnei wā {hh}:{mm}"
 
-                    else:
+                    else: # german
                         if request_type == 0x0001:  # current date
-                            text += f"Heute ist der {month_name(lang_index, month)} {day}, {year}"
+                            text += f"Heute ist der {day}. {month_name(lang_index, month)} {year}"
                         else:  # current time
                             text += f"Die Uhrzeit ist {hh}:{mm}"
 

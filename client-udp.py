@@ -8,9 +8,9 @@ def test_args():
         raise ValueError("ERROR: Incorrect number of command line arguments")
 
     req_type = 0
-    if argv[1] != "date" and argv[2] != "time":
+    if argv[1] != "date" and argv[1] != "time":
         raise ValueError(f"ERROR: Request type '{argv[1]}' is not valid")
-    elif argv[3] == "date":
+    elif argv[1] == "date":
         req_type = 1
     else:
         req_type = 2
@@ -73,10 +73,14 @@ def test_packet(res_pack):
     hour = res_pack[10]
     if hour < 0 or hour > 23:
         raise ValueError("ERROR: Packet has invalid hour")
+    elif hour < 10:
+        hour = "0" + str(hour)
 
     minute = res_pack[11]
     if minute < 0 or minute > 59:
         raise ValueError("ERROR: Packet has invalid minute")
+    elif minute < 10:
+        minute = "0" + str(minute)
 
     length = res_pack[12]
     if length + 13 != len(res_pack):
@@ -94,17 +98,10 @@ def test_packet(res_pack):
 
 
 def main():
-    # if len(argv) == 1:
-    #     argv.append("date")
-    #     argv.append("localhost")
-    #     argv.append("1025")
-
-    port, address, req_type, req_string, addr_info = test_args()
-
-
-
-    sock = None
     try:
+        sock = None
+        port, address, req_type, req_string, addr_info = test_args()
+
         print("Creating Socket")
         sock = socket(AF_INET, SOCK_DGRAM)
         sock.settimeout(1)
@@ -123,7 +120,10 @@ def main():
             raise OSError("ERROR: Sending failed")
             # raise OSError(e)
 
-        print(f"{req_string} request sent to {addr_info[4][0]}:{port}")
+        if req_type == 1:
+            print(f"Date request sent to {addr_info[4][0]}:{port}")
+        else:
+            print(f"Time request sent to {addr_info[4][0]}:{port}")
 
         res_pack, recv_addr = recv_from_host(sock)
 
