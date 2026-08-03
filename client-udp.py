@@ -94,10 +94,10 @@ def test_packet(res_pack):
 
 
 def main():
-    if len(argv) == 1:
-        argv.append("date")
-        argv.append("localhost")
-        argv.append("1025")
+    # if len(argv) == 1:
+    #     argv.append("date")
+    #     argv.append("localhost")
+    #     argv.append("1025")
 
     port, address, req_type, req_string, addr_info = test_args()
 
@@ -129,7 +129,7 @@ def main():
 
         lang, lang_code, year, month, day, hour, minute, text, length = test_packet(bytearray(res_pack))
 
-        print(f"{lang} response received:Text: {text}\nDate: {day}/{month}/{year}\nTime: {hour}:{minute})")
+        print(f"{lang} response received:\nText: {text}\nDate: {day}/{month}/{year}\nTime: {hour}:{minute}")
 
     except OSError as e:
         print(e)
