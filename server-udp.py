@@ -1,11 +1,13 @@
 from sys import argv, exit
 from socket import socket, SOCK_DGRAM, AF_INET, timeout, getaddrinfo
 from select import select
-from datetime import datetime, tzinfo
+from datetime import datetime
 
+# constants
 _HEADER_SIZE = 13
 
 
+# helper functions or classes
 def test_args(ports):
     if len(argv) != 4:
         raise ValueError("ERROR: Incorrect number of command line arguments")
@@ -14,14 +16,19 @@ def test_args(ports):
         raise ValueError("ERROR: Duplicate ports given")
 
     for i in range(1, len(argv)):
+        if type(ports[i - 1]) != int:
+            raise TypeError(f"ERROR: Given port '{argv[i]}' is not an integer")
         try:
             ports[i - 1] = int(argv[i])
+        except TypeError:
+            raise TypeError(f"ERROR: Given port '{argv[i]}' is not an integer")
         except ValueError:
             raise TypeError(f"ERROR: Given port '{argv[i]}' is not an integer")
         if 1024 > ports[i - 1] or ports[i - 1] > 32767:
             raise ValueError(f"ERROR: Given port '{ports[i - 1]}' is not in the range [1024, 32767]")
 
     return ports
+
 
 def create_socket(lang):
     print(f"Creating socket for {lang}")
@@ -32,12 +39,14 @@ def create_socket(lang):
     except:
         raise OSError('ERROR: Socket creation failed')
 
+
 def bind_socket(sock, port):
     print(f"Binding to port {port}")
     try:
         sock.bind(("localhost", port))
     except Exception:
         raise OSError('ERROR: Socket binding failed')
+
 
 def test_data(data):
     if len(data) != 6:
@@ -53,6 +62,7 @@ def test_data(data):
     if request_type != 0x0001 and request_type != 0x0002:
         raise ValueError("ERROR: Packet has invalid type, dropping packet")
     return request_type
+
 
 def format_data(sock, sockets):
     try:
@@ -72,21 +82,102 @@ def format_data(sock, sockets):
     # request type string
     request_type_str = "date" if request_type == 0x0001 else "time"
 
-    ip_address = getaddrinfo(address[0], address[1])[0][3]
+    ip_address = getaddrinfo(address[0], address[1])[0][4][0]
 
     return data, address, request_type, request_type_str, lang_index, ip_address
 
+
 def month_name(lang, month):
-    eng_months = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"]
-    maori_months = ["Kohi-tātea", "Hui-tanguru", "Poutū-te-rangi", "Paenga-whāwhā", "Haratua", "Pipiri", "Hōngingoi", "Here-turi-kōkā", "Mahuru", "Whiringa-ā-nuku", "Whiringa-ā-rangi", "Hakihea"]
-    germ_months = ["Januar", "Februar", "März", "April", "Mai", "Juni", "Juli", "August", "September", "Oktober", "November", "Dezember"]
+    eng_months = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October",
+                  "November", "December"]
+    maori_months = ["Kohi-tātea", "Hui-tanguru", "Poutū-te-rangi", "Paenga-whāwhā", "Haratua", "Pipiri", "Hōngingoi",
+                    "Here-turi-kōkā", "Mahuru", "Whiringa-ā-nuku", "Whiringa-ā-rangi", "Hakihea"]
+    germ_months = ["Januar", "Februar", "März", "April", "Mai", "Juni", "Juli", "August", "September", "Oktober",
+                   "November", "Dezember"]
 
     months = [eng_months, maori_months, germ_months]
 
     return months[lang][month - 1]
 
-def main():
 
+def get_date_info(dt):
+    return dt.minute, dt.hour, dt.day, dt.month, dt.year
+
+
+def create_text(request_type, lang_index, year, month, day, hh, mm):
+    text = ""
+    if mm < 10:
+        mm = "0" + str(mm)
+    if hh < 10:
+        hh = "0" + str(hh)
+    if lang_index == 0:  # english
+        if request_type == 0x0001:  # current date
+            text = f"Today's date is {month_name(lang_index, month)} {day}, {year}"
+        else:  # current time
+            text = f"The current time is {hh}:{mm}"
+
+    elif lang_index == 1:  # Māori
+        if request_type == 0x0001:  # current date
+            text = f"Ko te rā o tēnei rā ko {month_name(lang_index, month)} {day}, {year}"
+        else:  # current time
+            text = f"Ko te wā o tēnei wā {hh}:{mm}"
+
+    else:  # german
+        if request_type == 0x0001:  # current date
+            text += f"Heute ist der {day}. {month_name(lang_index, month)} {year}"
+        else:  # current time
+            text += f"Die Uhrzeit ist {hh}:{mm}"
+
+    return text
+
+
+def create_bytes(text):
+    text_bytes = text.encode("UTF-8")
+    text_length = len(text_bytes)
+    if text_length > 255:
+        raise ValueError("ERROR: Text too long, dropping packet")
+    return text_bytes, text_length
+
+
+def create_packet(packet_array, lang_index, year, month, day, hh, mm, text_length, text_bytes):
+    # Header ------------------
+    # Magic Number
+    packet_array[0] = 0x36
+    packet_array[1] = 0xFB
+
+    # Packet Type
+    packet_array[2] = 0x00
+    packet_array[3] = 0x02
+
+    # Request Type
+    packet_array[4] = 0x00
+    packet_array[5] = lang_index + 1
+
+    # Date
+    packet_array[6] = (year & 0xFF00) >> 8
+    packet_array[7] = (year & 0x00FF)
+    packet_array[8] = month
+    packet_array[9] = day
+    packet_array[10] = hh
+    packet_array[11] = mm
+
+    # text length
+    packet_array[12] = text_length
+
+    for i in range(text_length):
+        packet_array[i + 13] = text_bytes[i]
+
+
+def send_packet(sock, packet_array, address):
+    try:
+        sock.sendto(packet_array, address)
+        print("Response sent")
+    except Exception as e:
+        raise OSError("ERROR: Sending failed, dropping packet")
+
+
+def main():
+    # main function
     # variables
     languages = ["English", "Māori", "German"]
     sockets = [None, None, None]
@@ -94,16 +185,7 @@ def main():
 
     try:
         test_args(ports)
-    except ValueError as e:
-        print(e)
-        exit(1)
-    except TypeError as e:
-        print(e)
-        exit(1)
-
-    try:
         for i in range(len(ports)):
-
             sockets[i] = create_socket(languages[i])
             bind_socket(sockets[i], ports[i])
 
@@ -119,34 +201,12 @@ def main():
                     # proper packet
                     print(f"{languages[lang_index]} received {request_type_str} request from {ip_address}")
 
-                    # dt = datetime.now()
-                    # dt = datetime(2019, 3, 17, 5, 6, 0)
-                    # dt = datetime(2012, 5, 2, 2, 23, 0)
-                    dt = datetime(2020, 4, 12, 8, 57, 0)
-                    mm = dt.minute
-                    hh = dt.hour
-                    day = dt.day
-                    month = dt.month
-                    year = dt.year
+                    dt = datetime.now()
+                    mm, hh, day, month, year = get_date_info(dt)
 
-                    text = ""
-                    if lang_index == 0: # english
-                        if request_type == 0x0001:  # current date
-                            text = f"Today's date is {month_name(lang_index, month)} {day}, {year}"
-                        else:  # current time
-                            text = f"The current time is {hh}:{mm}"
+                    text = create_text(request_type, lang_index, year, month, day, hh, mm)
 
-                    elif lang_index == 1:  # Māori
-                        if request_type == 0x0001:  # current date
-                            text = f"Ko te rā o tēnei rā ko {month_name(lang_index, month)} {day}, {year}"
-                        else:  # current time
-                            text = f"Ko te wā o tēnei wā {hh}:{mm}"
-
-                    else: # german
-                        if request_type == 0x0001:  # current date
-                            text += f"Heute ist der {day}. {month_name(lang_index, month)} {year}"
-                        else:  # current time
-                            text += f"Die Uhrzeit ist {hh}:{mm}"
+                    text_bytes, text_length = create_bytes(text)
 
                     text_bytes = text.encode("UTF-8")
                     text_length = len(text_bytes)
@@ -155,39 +215,10 @@ def main():
 
                     packet_array = bytearray(text_length + _HEADER_SIZE)
 
-                    # Header ------------------
-                    # Magic Number
-                    packet_array[0] = 0x36
-                    packet_array[1] = 0xFB
+                    create_packet(packet_array, lang_index, year, month, day, hh, mm, text_length, text_bytes)
 
-                    # Packet Type
-                    packet_array[2] = 0x00
-                    packet_array[3] = 0x02
+                    send_packet(sock, packet_array, address)
 
-                    # Request Type
-                    packet_array[4] = 0x00
-                    packet_array[5] = lang_index + 1
-
-                    # Date
-                    packet_array[6] = (year & 0xFF00) >> 8
-                    packet_array[7] =  (year & 0x00FF)
-                    packet_array[8] = month
-                    packet_array[9] = day
-                    packet_array[10] = hh
-                    packet_array[11] = mm
-
-                    # text length
-                    packet_array[12] = text_length
-
-                    for i in range(text_length):
-                        packet_array[i + 13] = text_bytes[i]
-
-                    try:
-                        sock.sendto(packet_array, address)
-                        print("Response sent")
-                    except Exception as e:
-                        # raise OSError("ERROR: Sending failed, dropping packet")
-                        raise OSError(e)
 
             except OSError as e:
                 print(e)
@@ -199,6 +230,8 @@ def main():
     except ValueError as e:
         print(e)
     except OSError as e:
+        print(e)
+    except TypeError as e:
         print(e)
     finally:
         for s in sockets:

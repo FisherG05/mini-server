@@ -3,7 +3,6 @@ from socket import socket, getaddrinfo, timeout, AF_INET, SOCK_DGRAM
 
 
 def test_args():
-
     if len(argv) != 4:
         raise ValueError("ERROR: Incorrect number of command line arguments")
 
@@ -26,7 +25,8 @@ def test_args():
     try:
         return port, argv[2], req_type, argv[1], getaddrinfo(argv[2], port)[0]
     except Exception:
-        raise ValueError(f"ERROR: Hostname resolution failed" )
+        raise ValueError(f"ERROR: Hostname resolution failed")
+
 
 def recv_from_host(sock):
     try:
@@ -36,7 +36,8 @@ def recv_from_host(sock):
     except Exception:
         raise OSError("ERROR: Receiving failed")
 
-def test_packet(res_pack):
+
+def test_packet_type(res_pack):
     if len(res_pack) < 13:
         raise ValueError("ERROR: Packet is too small to be a DT_Response")
 
@@ -58,6 +59,10 @@ def test_packet(res_pack):
     else:
         lang = "German"
 
+    return lang, lang_code
+
+
+def test_packet_date(res_pack):
     year = (res_pack[6] << 8) + res_pack[7]
     if year >= 2100:
         raise ValueError("ERROR: Packet has invalid year")
@@ -73,14 +78,10 @@ def test_packet(res_pack):
     hour = res_pack[10]
     if hour < 0 or hour > 23:
         raise ValueError("ERROR: Packet has invalid hour")
-    elif hour < 10:
-        hour = "0" + str(hour)
 
     minute = res_pack[11]
     if minute < 0 or minute > 59:
         raise ValueError("ERROR: Packet has invalid minute")
-    elif minute < 10:
-        minute = "0" + str(minute)
 
     length = res_pack[12]
     if length + 13 != len(res_pack):
@@ -92,9 +93,29 @@ def test_packet(res_pack):
     except Exception:
         raise ValueError("ERROR: Packet has invalid text")
 
+    return year, month, day, hour, minute, text, length
 
-    return lang, lang_code, year, month, day, hour, minute, text, length
 
+def create_packet(packet_array, req_type):
+    packet_array[0] = 0x36
+    packet_array[1] = 0xFB
+    packet_array[2] = 0x00
+    packet_array[3] = 0x01
+    packet_array[4] = 0x00
+    packet_array[5] = req_type
+
+
+def send_packet(sock, packet_array, addr_info, port, req_type):
+    try:
+        _ = sock.sendto(packet_array, addr_info)
+    except Exception as e:
+        raise OSError("ERROR: Sending failed")
+        # raise OSError(e)
+
+    if req_type == 1:
+        print(f"Date request sent to {addr_info[0]}:{port}")
+    else:
+        print(f"Time request sent to {addr_info[0]}:{port}")
 
 
 def main():
@@ -102,32 +123,22 @@ def main():
         sock = None
         port, address, req_type, req_string, addr_info = test_args()
 
-        print("Creating Socket")
-        sock = socket(AF_INET, SOCK_DGRAM)
+        print("Creating socket")
+        try:
+            sock = socket(AF_INET, SOCK_DGRAM)
+        except:
+            raise OSError("ERROR: Socket creation failed")
         sock.settimeout(1)
 
         packet_array = bytearray(6)
-        packet_array[0] = 0x36
-        packet_array[1] = 0xFB
-        packet_array[2] = 0x00
-        packet_array[3] = 0x01
-        packet_array[4] = 0x00
-        packet_array[5] = req_type
+        create_packet(packet_array, req_type)
 
-        try:
-            _ = sock.sendto(packet_array, addr_info[4])
-        except Exception as e:
-            raise OSError("ERROR: Sending failed")
-            # raise OSError(e)
-
-        if req_type == 1:
-            print(f"Date request sent to {addr_info[4][0]}:{port}")
-        else:
-            print(f"Time request sent to {addr_info[4][0]}:{port}")
+        send_packet(sock, packet_array, addr_info[4], port, req_type)
 
         res_pack, recv_addr = recv_from_host(sock)
 
-        lang, lang_code, year, month, day, hour, minute, text, length = test_packet(bytearray(res_pack))
+        lang, lang_code = test_packet_type(bytearray(res_pack))
+        year, month, day, hour, minute, text, length = test_packet_date(bytearray(res_pack))
 
         print(f"{lang} response received:\nText: {text}\nDate: {day}/{month}/{year}\nTime: {hour}:{minute}")
 
